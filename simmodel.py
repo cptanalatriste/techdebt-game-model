@@ -2,6 +2,18 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+CLEAN_ACTION = "CLEAN"
+SLOPPY_ACTION = "SLOPPY"
+
+
+class StubbornAgent(object):
+
+    def __init__(self, only_action):
+        self.only_action = only_action
+
+    def select_action(self, system_state, epsilon_decrease, global_counter):
+        return self.only_action
+
 
 class DevelopmentIssue(object):
 
@@ -12,18 +24,36 @@ class DevelopmentIssue(object):
 
 class Developer(object):
 
-    def __init__(self):
+    def __init__(self, agent):
         self.current_issue = None
-        self.coding_clean = None
         self.issues_delivered = 0
+        self.agent = agent
 
-    def code_clean(self, simulation_config):
-        self.current_issue = DevelopmentIssue(avg_resolution_time=simulation_config.avg_resolution_time,
-                                              prob_rework=simulation_config.prob_rework * 0.9)
+    def start_coding(self, simulation_environment, global_counter):
+        system_state = simulation_environment.get_system_state(self)
+
+        # TODO Verify these behaves as expected
+        epsilon_decrease = simulation_environment.current_time / float(simulation_environment.time_units)
+        action = self.agent.select_action(system_state=system_state, epsilon_decrease=epsilon_decrease,
+                                          global_counter=global_counter)
+
+        if CLEAN_ACTION == action:
+            self.code_clean(simulation_environment)
+        elif SLOPPY_ACTION == action:
+            self.code_sloppy(simulation_environment)
+
+        return action
+
+    def code_clean(self, simulation_environment):
+        self.current_issue = DevelopmentIssue(avg_resolution_time=simulation_environment.avg_resolution_time,
+                                              prob_rework=simulation_environment.prob_rework * 0.9)
 
     def code_sloppy(self, simulation_config):
         self.current_issue = DevelopmentIssue(avg_resolution_time=simulation_config.avg_resolution_time * 0.75,
                                               prob_rework=simulation_config.prob_rework * 1.1)
+
+    def notify(self, current_state, action_performed, next_state):
+        self.dqn_agent.store_transition(current_state, action_performed, next_state)
 
 
 class SimulationEnvironment(object):
@@ -47,38 +77,38 @@ class SimulationEnvironment(object):
     def get_system_state(self, developer):
         return self.current_time, self.pending_issues, developer.issues_delivered
 
+    def step(self, developer, time_step, global_counter):
+        self.current_time = time_step
+        action_performed = None
 
-def update_state(simulation_config, developer, time_step):
-    simulation_config.current_time = time_step
+        if self.pending_issues > 0:
 
-    if simulation_config.pending_issues > 0:
+            if not developer.current_issue:
+                action_performed = developer.start_coding(self, global_counter)
+            else:
+                if np.random.random() < developer.current_issue.avg_resolution_time:
+                    self.prob_rework = developer.current_issue.prob_rework
 
-        if not developer.current_issue:
-            developer.code_sloppy(simulation_config)
-        else:
-            if np.random.random() < developer.current_issue.avg_resolution_time:
-                simulation_config.prob_rework = developer.current_issue.prob_rework
+                    if not np.random.random() < developer.current_issue.prob_rework:
+                        developer.current_issue = None
+                        self.remove_issue(developer)
 
-                if np.random.random() < developer.current_issue.prob_rework:
-                    developer.code_clean(simulation_config)
-                else:
-                    developer.current_issue = None
-                    simulation_config.remove_issue(developer)
+        if np.random.random() < self.prob_new_issue:
+            self.register_new_issue()
 
-    if np.random.random() < simulation_config.prob_new_issue:
-        simulation_config.register_new_issue()
+        return action_performed, self.get_system_state(developer)
 
 
 def run_simulation():
     pending_issues = []
-    simulation_config = SimulationEnvironment(time_units=60, avg_resolution_time=1 / 5.0,
-                                              prob_new_issue=0.1, prob_rework=0.05)
+    simulation_env = SimulationEnvironment(time_units=60, avg_resolution_time=1 / 5.0,
+                                           prob_new_issue=0.1, prob_rework=0.05)
 
-    developer = Developer()
+    developer = Developer(agent=StubbornAgent(only_action="SLOPPY"))
 
-    for time_step in range(simulation_config.time_units):
-        update_state(simulation_config, developer, time_step)
-        pending_issues.append(simulation_config.pending_issues)
+    for time_step in range(simulation_env.time_units):
+        simulation_env.step(developer, time_step=time_step, global_counter=time_step)
+        pending_issues.append(simulation_env.pending_issues)
 
     return pd.Series(pending_issues)
 
