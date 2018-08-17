@@ -15,6 +15,7 @@ class Developer(object):
     def __init__(self):
         self.current_issue = None
         self.coding_clean = None
+        self.issues_delivered = 0
 
     def code_clean(self, simulation_config):
         self.current_issue = DevelopmentIssue(avg_resolution_time=simulation_config.avg_resolution_time,
@@ -25,7 +26,7 @@ class Developer(object):
                                               prob_rework=simulation_config.prob_rework * 1.1)
 
 
-class SimulationConfig(object):
+class SimulationEnvironment(object):
 
     def __init__(self, time_units, avg_resolution_time, prob_new_issue, prob_rework):
         self.time_units = time_units
@@ -34,15 +35,22 @@ class SimulationConfig(object):
         self.prob_rework = prob_rework
 
         self.pending_issues = 0
+        self.current_time = None
 
     def register_new_issue(self):
         self.pending_issues += 1
 
-    def remove_issue(self):
+    def remove_issue(self, developer):
         self.pending_issues -= 1
+        developer.issues_delivered += 1
+
+    def get_system_state(self, developer):
+        return self.current_time, self.pending_issues, developer.issues_delivered
 
 
-def update_state(simulation_config, developer):
+def update_state(simulation_config, developer, time_step):
+    simulation_config.current_time = time_step
+
     if simulation_config.pending_issues > 0:
 
         if not developer.current_issue:
@@ -55,7 +63,7 @@ def update_state(simulation_config, developer):
                     developer.code_clean(simulation_config)
                 else:
                     developer.current_issue = None
-                    simulation_config.remove_issue()
+                    simulation_config.remove_issue(developer)
 
     if np.random.random() < simulation_config.prob_new_issue:
         simulation_config.register_new_issue()
@@ -63,13 +71,13 @@ def update_state(simulation_config, developer):
 
 def run_simulation():
     pending_issues = []
-    simulation_config = SimulationConfig(time_units=60, avg_resolution_time=1 / 5.0,
-                                         prob_new_issue=0.1, prob_rework=0.05)
+    simulation_config = SimulationEnvironment(time_units=60, avg_resolution_time=1 / 5.0,
+                                              prob_new_issue=0.1, prob_rework=0.05)
 
     developer = Developer()
 
     for time_step in range(simulation_config.time_units):
-        update_state(simulation_config, developer)
+        update_state(simulation_config, developer, time_step)
         pending_issues.append(simulation_config.pending_issues)
 
     return pd.Series(pending_issues)
@@ -77,7 +85,7 @@ def run_simulation():
 
 if __name__ == "__main__":
     pending_issues = run_simulation()
-    print(pending_issues)
+    print("Mean issues in the system: ", pending_issues.mean())
 
     plt.plot(pending_issues.index, pending_issues.values)
     plt.show()
