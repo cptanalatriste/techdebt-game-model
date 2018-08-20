@@ -30,19 +30,21 @@ class Developer(object):
         self.agent = agent
 
     def start_coding(self, simulation_environment, global_counter):
-        system_state = simulation_environment.get_system_state(self)
+        system_state = simulation_environment.get_system_state()
 
         # TODO Verify these behaves as expected
         epsilon_decrease = simulation_environment.current_time / float(simulation_environment.time_units)
         action = self.agent.select_action(system_state=system_state, epsilon_decrease=epsilon_decrease,
                                           global_counter=global_counter)
 
+        self.carry_out_action(action, simulation_environment)
+        return action
+
+    def carry_out_action(self, action, simulation_environment):
         if CLEAN_ACTION == action:
             self.code_clean(simulation_environment)
         elif SLOPPY_ACTION == action:
             self.code_sloppy(simulation_environment)
-
-        return action
 
     def code_clean(self, simulation_environment):
         self.current_issue = DevelopmentIssue(avg_resolution_time=simulation_environment.avg_resolution_time,
@@ -74,8 +76,8 @@ class SimulationEnvironment(object):
         self.pending_issues -= 1
         developer.issues_delivered += 1
 
-    def get_system_state(self, developer):
-        return self.current_time, self.pending_issues, developer.issues_delivered
+    def get_system_state(self):
+        return self.current_time, self.pending_issues
 
     def step(self, developer, time_step, global_counter):
         self.current_time = time_step
@@ -96,7 +98,7 @@ class SimulationEnvironment(object):
         if np.random.random() < self.prob_new_issue:
             self.register_new_issue()
 
-        return action_performed, self.get_system_state(developer)
+        return action_performed, self.get_system_state()
 
 
 def run_simulation():
