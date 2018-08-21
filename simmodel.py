@@ -27,6 +27,8 @@ class Developer(object):
     def __init__(self, agent):
         self.current_issue = None
         self.issues_delivered = 0
+        self.sloppy_counter = 0
+
         self.agent = agent
 
     def start_coding(self, simulation_environment, global_counter):
@@ -51,6 +53,7 @@ class Developer(object):
                                               prob_rework=simulation_environment.prob_rework * 0.9)
 
     def code_sloppy(self, simulation_config):
+        self.sloppy_counter += 1
         self.current_issue = DevelopmentIssue(avg_resolution_time=simulation_config.avg_resolution_time * 0.75,
                                               prob_rework=simulation_config.prob_rework * 1.1)
 
@@ -67,42 +70,54 @@ class SimulationEnvironment(object):
         self.prob_new_issue = prob_new_issue
         self.prob_rework = prob_rework
 
-        self.pending_issues = 0
+        self.to_do_issues = 0
+        self.doing_issues = 0
+        self.done_issues = 0
+
         self.current_time = 0
 
-    def register_new_issue(self):
-        self.pending_issues += 1
+    def add_to_backlog(self):
+        self.to_do_issues += 1
 
-    def remove_issue(self, developer):
-        self.pending_issues -= 1
+    def move_to_in_progress(self, developer, global_counter):
+        action_performed = developer.start_coding(self, global_counter)
+        self.to_do_issues -= 1
+        self.doing_issues += 1
+
+        return action_performed
+
+    def move_to_done(self, developer):
+        self.doing_issues -= 1
+        self.done_issues += 1
+
         developer.issues_delivered += 1
+        developer.current_issue = None
 
     def get_system_state(self):
-        return self.current_time, self.pending_issues
+        return self.time_units - self.current_time, self.to_do_issues, self.doing_issues, self.done_issues
 
     def step(self, developer, time_step, global_counter):
         self.current_time = time_step
         action_performed = None
 
-        if self.pending_issues > 0:
+        if self.to_do_issues > 0:
 
-            if not developer.current_issue:
-                action_performed = developer.start_coding(self, global_counter)
+            if developer.current_issue is None:
+                action_performed = self.move_to_in_progress(developer, global_counter)
             else:
 
                 random_output = np.random.random()
-
                 if random_output < developer.current_issue.avg_resolution_time:
+                    # Deliver issue, but verify rework first
                     self.prob_rework = developer.current_issue.prob_rework
 
                     random_output = np.random.random()
-
                     if random_output >= developer.current_issue.prob_rework:
-                        developer.current_issue = None
-                        self.remove_issue(developer)
+                        # No rework needed
+                        self.move_to_done(developer)
 
         if np.random.random() < self.prob_new_issue:
-            self.register_new_issue()
+            self.add_to_backlog()
 
         return action_performed, self.get_system_state()
 

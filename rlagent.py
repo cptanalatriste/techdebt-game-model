@@ -2,6 +2,7 @@ import tensorflow as tf
 import simmodel
 import numpy as np
 import logging
+import os
 from tqdm import tqdm
 
 
@@ -67,9 +68,12 @@ class ExperienceReplayMemory(object):
 class DeveloperAgent(object):
 
     def __init__(self, session, learning_rate, discount_factor, input_number, hidden_units, counter_for_learning,
-                 logger):
+                 logger, initial_epsilon, final_epsilon, decay_steps):
         self.session = session
         self.logger = logger
+        self.initial_epsilon = initial_epsilon
+        self.final_epsilon = final_epsilon
+        self.decay_steps = decay_steps
 
         self.learning_rate = learning_rate
         self.actions = [simmodel.CLEAN_ACTION, simmodel.SLOPPY_ACTION]
@@ -87,17 +91,24 @@ class DeveloperAgent(object):
             states = tf.placeholder(tf.float32, shape=[None, input_number], name="state")
 
             initializer = tf.variance_scaling_initializer()
-            hidden_layer = tf.layers.dense(states, hidden_units, activation=tf.nn.elu, kernel_initializer=initializer,
-                                           name="hidden")
-            outputs = tf.layers.dense(hidden_layer, len(self.actions), kernel_initializer=initializer, name="q_values")
+            hidden_layer_1 = tf.layers.dense(states, hidden_units, activation=tf.nn.elu, kernel_initializer=initializer,
+                                             name="hidden_1")
+            hidden_layer_2 = tf.layers.dense(hidden_layer_1, hidden_units, activation=tf.nn.elu,
+                                             kernel_initializer=initializer,
+                                             name="hidden_2")
+            outputs = tf.layers.dense(hidden_layer_2, len(self.actions), kernel_initializer=initializer,
+                                      name="q_values")
 
         return states, outputs
 
-    def select_action(self, system_state, global_counter, initial_epsilon=1.0, final_epsilon=0.1, decay_steps=10000):
-        prob_random = max(final_epsilon,
-                          initial_epsilon - (initial_epsilon - final_epsilon) * global_counter / decay_steps)
+    def get_current_epsilon(self, global_counter):
+        return max(self.final_epsilon,
+                   self.initial_epsilon - (
+                           self.initial_epsilon - self.final_epsilon) * global_counter / self.decay_steps)
 
-        logger.debug("prob_random: %.2f", prob_random)
+    def select_action(self, system_state, global_counter):
+        prob_random = self.get_current_epsilon(global_counter)
+        logger.debug("system state: %s prob_random: %.2f", str(system_state), prob_random)
 
         q_values_from_pred = self.session.run(self.pred_q_values, feed_dict={self.pred_states: [system_state]})
 
@@ -108,7 +119,7 @@ class DeveloperAgent(object):
             return action
         else:
             action = np.argmax(q_values_from_pred)
-            logger.debug("Behaving greedy: %s", str(action))
+            logger.debug("Behaving greedy: %s q_values_from_pred: %s", str(action), str(q_values_from_pred))
             return action
 
     def build_training_operation(self):
@@ -133,9 +144,6 @@ class DeveloperAgent(object):
 
     def train_network(self, target_q_values, action_list, state_list):
 
-        logger.debug("target_q_values: %s action_list: %s state_list: %s ", str(target_q_values), str(action_list),
-                     str(state_list))
-
         _, q_values, loss = self.session.run([self.train_operation, self.pred_q_values, self.train_loss], feed_dict={
             self.train_target_q: target_q_values,
             self.train_actions: action_list,
@@ -154,35 +162,52 @@ class DeveloperAgent(object):
 
 
 def main(logger):
-    total_episodes = 1000
+    # total_episodes = 1000
+    total_episodes = 100
+    decay_steps = total_episodes * 10
+
     train_frequency = 4
-    transfer_frequency = 10 * 60
     batch_size = 32
-    logging_frequency = 50
 
     discount_factor = 0.99
     learning_rate = 1e-4
-    input_number = 2
-    hidden_units = 2
+    input_number = 4
+    hidden_units = 24
 
     time_units = 60
     counter_for_learning = total_episodes * time_units * 0.1
+    transfer_frequency = counter_for_learning
+    save_frequency = counter_for_learning * 0.1
+    logging_frequency = save_frequency
+
     avg_resolution_time = 1 / 3.0
     prob_new_issue = 0.9
     prob_rework = 0.05
+    initial_epsilon = 1.0
+    final_epsilon = 0.1
+
+    checkpoint_path = "./tech_debt_rl.ckpt"
+    enable_restore = False
 
     with tf.Session() as session:
+
         developer_agent = DeveloperAgent(session=session, learning_rate=learning_rate,
                                          discount_factor=discount_factor, counter_for_learning=counter_for_learning,
-                                         input_number=input_number, hidden_units=hidden_units, logger=logger)
+                                         input_number=input_number, hidden_units=hidden_units, logger=logger,
+                                         initial_epsilon=initial_epsilon, final_epsilon=final_epsilon,
+                                         decay_steps=decay_steps)
         logger.debug("RL agent initialized")
 
-        session.run(tf.global_variables_initializer())
+        initializer = tf.global_variables_initializer()
+        saver = tf.train.Saver()
+
+        if os.path.isfile(checkpoint_path + ".index") and enable_restore:
+            saver.restore(session, checkpoint_path)
+        else:
+            session.run(initializer)
 
         global_counter = 0
         replay_memory = ExperienceReplayMemory()
-        q_values_list = []
-        episode_reward_list = []
 
         for episode_index in tqdm(range(1, total_episodes + 1)):
             simulation_environment = simmodel.SimulationEnvironment(logger=logger,
@@ -196,6 +221,8 @@ def main(logger):
             previous_state = simulation_environment.get_system_state()
 
             for time_step in range(simulation_environment.time_units):
+                logger.debug("Global counter: %s", str(global_counter))
+
                 action_performed, new_state = simulation_environment.step(developer, time_step, global_counter)
                 reward = developer.issues_delivered
 
@@ -203,7 +230,8 @@ def main(logger):
                     episode_experience.observe_action_effects(previous_state, action_performed, reward, new_state)
                     previous_state = new_state
                     episode_reward += reward
-                    global_counter += 1
+
+                global_counter += 1
 
                 if global_counter > counter_for_learning:
                     if global_counter % train_frequency == 0:
@@ -214,35 +242,21 @@ def main(logger):
                         target_q_values = developer_agent.calculate_transition_targets(reward_list, next_state_list)
 
                         logger.debug("Starting training ...")
-                        q_values = developer_agent.train_network(target_q_values, action_list, state_list)
-
-                        q_values_list.append(q_values)
+                        _ = developer_agent.train_network(target_q_values, action_list, state_list)
 
                     if global_counter % transfer_frequency:
                         developer_agent.update_target_weights()
 
+                    if global_counter % save_frequency:
+                        saver.save(session, checkpoint_path)
+
             replay_memory.store_experience(episode_experience)
-            episode_reward_list.append(episode_reward)
 
-            logger.debug("EPISODE %s: Developer fixes: %.2f Final pending issues: %.2f", str(episode_index),
-                         developer.issues_delivered, simulation_environment.pending_issues)
-            log_progress(logging_frequency, episode_index, episode_reward_list, q_values_list)
-
-
-def log_progress(logging_frequency, episode_index, episode_reward_list, q_values_list):
-    if logging_frequency % episode_index == 0:
-        last_100_rewards = episode_reward_list[-100:]
-        logger.info("EPISODE %s Reward stats (min, max, median, mean): %.2f %.2f %.2f %.2f", str(episode_index),
-                    np.min(last_100_rewards),
-                    np.max(last_100_rewards),
-                    np.median(last_100_rewards), np.mean(last_100_rewards))
-
-        if q_values_list:
-            last_100_qvalues = q_values_list[-100:]
-            logger.info("EPISODE %s Q value stats (min, max, median, mean): %.2f %.2f %.2f %.2f",
-                        str(episode_index), np.min(last_100_qvalues),
-                        np.max(last_100_qvalues),
-                        np.median(last_100_qvalues), np.mean(last_100_qvalues))
+            logger.info("EPISODE %s: Developer fixes: %.2f Sloppy percentage: %.2f Next epsilon: %.2f ",
+                        str(episode_index),
+                        developer.issues_delivered,
+                        float(developer.sloppy_counter) / max(developer.issues_delivered, 1),
+                        developer_agent.get_current_epsilon(global_counter))
 
 
 if __name__ == "__main__":
