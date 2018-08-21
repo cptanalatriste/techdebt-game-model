@@ -76,7 +76,7 @@ class DeveloperAgent(object):
         self.prediction_scope = 'prediction_network'
         self.pred_states, self.pred_q_values = self.build_network(self.target_scope, state_size, hidden_units)
         self.target_states, self.target_q_values = self.build_network(self.prediction_scope, state_size, hidden_units)
-        self.target_q_values, self.action_tensor, self.train_operation = self.build_training_operation()
+        self.train_target_q, self.train_actions, self.train_loss, self.train_operation = self.build_training_operation()
 
     def build_network(self, variable_scope, state_size, hidden_units):
         with tf.variable_scope(variable_scope):
@@ -101,16 +101,17 @@ class DeveloperAgent(object):
             return np.argmax(action_distribution)
 
     def build_training_operation(self):
-        target_q_values = tf.placeholder(tf.float32, [None], name="target_q_values")
-        actions = tf.placeholder(tf.int64, [None], name="actions")
+        train_target_q = tf.placeholder(tf.float32, [None], name="target_q_values")
+        train_actions = tf.placeholder(tf.int64, [None], name="actions")
 
-        actions_one_hot = tf.one_hot(actions, len(self.actions), 1.0, 0.0, name="actions_one_hot")
+        actions_one_hot = tf.one_hot(train_actions, len(self.actions), 1.0, 0.0, name="actions_one_hot")
         action_q_values = tf.reduce_sum(self.pred_q_values * actions_one_hot, axis=1, name="action_q_values")
 
-        delta = tf.square(target_q_values - action_q_values)
+        delta = tf.square(train_target_q - action_q_values)
         loss = tf.reduce_mean(delta, name="loss")
         optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
-        return target_q_values, actions, optimizer.minimize(loss)
+
+        return train_target_q, train_actions, loss, optimizer.minimize(loss)
 
     def calculate_transition_targets(self, reward_list, next_state_list):
         next_q_values = self.session.run(self.target_q_values, feed_dict={self.target_states: next_state_list})
@@ -121,9 +122,9 @@ class DeveloperAgent(object):
 
     def train_network(self, target_q_values, action_list, state_list):
 
-        _, q_values, loss = self.session.run([self.train_operation, self.pred_q_values, self.loss], feed_dict={
-            self.target_q_values: target_q_values,
-            self.action_tensor: action_list,
+        _, q_values, loss = self.session.run([self.train_operation, self.pred_q_values, self.train_loss], feed_dict={
+            self.train_target_q: target_q_values,
+            self.train_actions: action_list,
             self.pred_states: state_list})
 
         return q_values
@@ -188,6 +189,8 @@ def main(logger):
                     if global_counter % train_frequency == 0:
                         state_list, action_list, reward_list, next_state_list = replay_memory.sample_transitions(
                             batch_size)
+
+                        logger.debug("Starting transition target calculations...")
                         target_q_values = developer_agent.calculate_transition_targets(reward_list, next_state_list)
 
                         logger.debug("Starting training ...")
@@ -203,17 +206,19 @@ def main(logger):
 
             if logging_frequency % episode_index == 0:
                 last_100_rewards = episode_reward_list[-100:]
-                logger.info("Reward stats (min, max, median, mean):", np.min(last_100_rewards), np.max(last_100_rewards),
-                      np.median(last_100_rewards), np.mean(last_100_rewards))
+                logger.info("Reward stats (min, max, median, mean): %.2f %.2f %.2f %.2f", np.min(last_100_rewards),
+                            np.max(last_100_rewards),
+                            np.median(last_100_rewards), np.mean(last_100_rewards))
 
                 if q_values_list:
                     last_100_qvalues = q_values_list[-100:]
-                    logger.info("Q value stats (min, max, median, mean):", np.min(last_100_qvalues), np.max(last_100_qvalues),
-                          np.median(last_100_qvalues), np.mean(last_100_qvalues))
+                    logger.info("Q value stats (min, max, median, mean): %.2f %.2f %.2f %.2f", np.min(last_100_qvalues),
+                                np.max(last_100_qvalues),
+                                np.median(last_100_qvalues), np.mean(last_100_qvalues))
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level='DEBUG', filename='tech_debt_rl.log')
+    logging.basicConfig(level=logging.INFO, filename='tech_debt_rl.log', filemode='w')
     logger = logging.getLogger("DQNetwork-Training")
     logger.debug("Starting script")
     main(logger)
