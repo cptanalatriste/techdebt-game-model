@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-CLEAN_ACTION = "CLEAN"
-SLOPPY_ACTION = "SLOPPY"
+CLEAN_ACTION = 0
+SLOPPY_ACTION = 1
 
 
 class StubbornAgent(object):
@@ -32,9 +32,7 @@ class Developer(object):
     def start_coding(self, simulation_environment, global_counter):
         system_state = simulation_environment.get_system_state()
 
-        # TODO Verify these behaves as expected
-        epsilon_decrease = simulation_environment.current_time / float(simulation_environment.time_units)
-        action = self.agent.select_action(system_state=system_state, epsilon_decrease=epsilon_decrease,
+        action = self.agent.select_action(system_state=system_state,
                                           global_counter=global_counter)
 
         self.carry_out_action(action, simulation_environment)
@@ -45,6 +43,8 @@ class Developer(object):
             self.code_clean(simulation_environment)
         elif SLOPPY_ACTION == action:
             self.code_sloppy(simulation_environment)
+        else:
+            raise Exception("The action " + str(action) + " is not supported.")
 
     def code_clean(self, simulation_environment):
         self.current_issue = DevelopmentIssue(avg_resolution_time=simulation_environment.avg_resolution_time,
@@ -60,14 +60,15 @@ class Developer(object):
 
 class SimulationEnvironment(object):
 
-    def __init__(self, time_units, avg_resolution_time, prob_new_issue, prob_rework):
+    def __init__(self, time_units, avg_resolution_time, prob_new_issue, prob_rework, logger):
         self.time_units = time_units
+        self.logger = logger
         self.avg_resolution_time = avg_resolution_time
         self.prob_new_issue = prob_new_issue
         self.prob_rework = prob_rework
 
         self.pending_issues = 0
-        self.current_time = None
+        self.current_time = 0
 
     def register_new_issue(self):
         self.pending_issues += 1
@@ -88,10 +89,15 @@ class SimulationEnvironment(object):
             if not developer.current_issue:
                 action_performed = developer.start_coding(self, global_counter)
             else:
-                if np.random.random() < developer.current_issue.avg_resolution_time:
+
+                random_output = np.random.random()
+
+                if random_output < developer.current_issue.avg_resolution_time:
                     self.prob_rework = developer.current_issue.prob_rework
 
-                    if not np.random.random() < developer.current_issue.prob_rework:
+                    random_output = np.random.random()
+
+                    if random_output >= developer.current_issue.prob_rework:
                         developer.current_issue = None
                         self.remove_issue(developer)
 
