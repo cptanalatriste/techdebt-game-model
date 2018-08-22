@@ -3,3 +3,9 @@
 *.iml
 *.pyc
 *.log
+*.data-00000-of-00001
+*.index
+*.meta
+*.index
+*.meta
+.DS_Store
