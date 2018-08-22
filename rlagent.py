@@ -3,25 +3,104 @@ import simmodel
 import numpy as np
 
 
+class ExperienceReplayMemory(object):
+
+    def __init__(self, replay_memory_size):
+        self.replay_memory_size = replay_memory_size
+        self.consolidated_experience = EpisodeExperience()
+
+    def store_experience(self, episode_history):
+        self.consolidated_experience.consolidate(episode_history)
+
+        while self.consolidated_experience.size() > self.replay_memory_size:
+            self.consolidated_experience.purge()
+
+    def sample_transitions(self, batch_size):
+        batch = EpisodeExperience()
+
+        if self.consolidated_experience.size() == 0:
+            raise Exception("No transitions for sampling.")
+
+        selected_indexes = np.arange(self.consolidated_experience.size())
+        np.random.shuffle(selected_indexes)
+        selected_indexes = selected_indexes[:batch_size]
+
+        for index in selected_indexes:
+            batch.observe_action_effects(state=self.consolidated_experience.states[index],
+                                         action=self.consolidated_experience.actions[index],
+                                         reward=self.consolidated_experience.rewards[index],
+                                         new_state=self.consolidated_experience.new_states[index])
+
+        return np.array(batch.states), np.array(batch.actions), np.array(batch.rewards), np.array(batch.new_states)
+
+
+class EpisodeExperience(object):
+
+    def __init__(self):
+        self.states = []
+        self.actions = []
+        self.rewards = []
+        self.new_states = []
+
+    def size(self):
+        return len(self.states)
+
+    def observe_action_effects(self, state, action, reward, new_state):
+        self.states.append(state)
+        self.actions.append(action)
+        self.rewards.append(reward)
+        self.new_states.append(new_state)
+
+    def consolidate(self, episode_history):
+        self.states += episode_history.states
+        self.actions += episode_history.actions
+        self.rewards += episode_history.rewards
+        self.new_states += episode_history.new_states
+
+    def purge(self):
+        self.states.pop(0)
+        self.actions.pop(0)
+        self.rewards.pop(0)
+        self.new_states.pop(0)
+
+
 class DeepQLearner(object):
 
-    def __init__(self, learning_rate, discount_factor, input_number, hidden_units, counter_for_learning,
-                 logger, initial_epsilon, final_epsilon, decay_steps):
+    def __init__(self, name, learning_rate, discount_factor, input_number, hidden_units, counter_for_learning,
+                 logger, initial_epsilon, final_epsilon, decay_steps, replay_memory_size):
         self.logger = logger
+        self.name = name
         self.initial_epsilon = initial_epsilon
         self.final_epsilon = final_epsilon
         self.decay_steps = decay_steps
+        self.episode_experience = EpisodeExperience()
+        self.replay_memory = ExperienceReplayMemory(replay_memory_size=replay_memory_size)
 
         self.learning_rate = learning_rate
         self.actions = [simmodel.CLEAN_ACTION, simmodel.SLOPPY_ACTION]
         self.discount_factor = discount_factor
         self.counter_for_learning = counter_for_learning
 
-        self.target_scope = 'target_network'
-        self.prediction_scope = 'prediction_network'
+        self.target_scope = self.name + '-target_network'
+        self.prediction_scope = self.name + '-prediction_network'
         self.pred_states, self.pred_q_values = self.build_network(self.target_scope, input_number, hidden_units)
         self.target_states, self.target_q_values = self.build_network(self.prediction_scope, input_number, hidden_units)
         self.train_target_q, self.train_actions, self.train_loss, self.train_operation = self.build_training_operation()
+
+    def new_episode(self):
+        self.episode_experience = EpisodeExperience()
+
+    def observe_action_effects(self, state, action, reward, new_state):
+        self.episode_experience.observe_action_effects(state, action, reward, new_state)
+
+    def sample_transitions(self, batch_size):
+        self.logger.debug(self.name + "-Memory size: " + str(
+            self.replay_memory.consolidated_experience.size()) + " .Sampling: " + str(batch_size))
+        return self.replay_memory.sample_transitions(batch_size)
+
+    def store_experience(self):
+        self.logger.debug(self.name + "-Consolidating experience: " + str(self.episode_experience.size()))
+        self.replay_memory.store_experience(self.episode_experience)
 
     def build_network(self, variable_scope, input_number, hidden_units):
         with tf.variable_scope(variable_scope):
@@ -45,18 +124,19 @@ class DeepQLearner(object):
 
     def select_action(self, system_state, global_counter, session):
         prob_random = self.get_current_epsilon(global_counter)
-        self.logger.debug("system state: %s prob_random: %.2f", str(system_state), prob_random)
+        self.logger.debug(self.name + "-system state: %s prob_random: %.2f", str(system_state), prob_random)
 
         q_values_from_pred = session.run(self.pred_q_values, feed_dict={self.pred_states: [system_state]})
 
         # TODO Also check the need of this
         if np.random.random() < prob_random or global_counter < self.counter_for_learning:
             action = np.random.randint(len(self.actions))
-            self.logger.debug("Behaving randomly: %s", str(action))
+            self.logger.debug(self.name + "-Behaving randomly: %s", str(action))
             return action
         else:
             action = np.argmax(q_values_from_pred)
-            self.logger.debug("Behaving greedy: %s q_values_from_pred: %s", str(action), str(q_values_from_pred))
+            self.logger.debug(self.name + "-Behaving greedy: %s q_values_from_pred: %s", str(action),
+                              str(q_values_from_pred))
             return action
 
     def build_training_operation(self):

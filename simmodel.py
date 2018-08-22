@@ -46,6 +46,7 @@ class Developer(object):
         self.current_issue = None
         self.approach_map = approach_map
         self.agent = agent
+        self.name = agent.name
 
         self.issues_delivered = None
         self.sloppy_counter = None
@@ -61,6 +62,8 @@ class Developer(object):
         self.issues_delivered = 0
         self.sloppy_counter = 0
         self.attempted_deliveries = 0
+
+        self.agent.new_episode()
 
     def start_coding(self, simulation_environment, global_counter, session):
         system_state = simulation_environment.get_system_state()
@@ -84,11 +87,12 @@ class Developer(object):
         else:
             raise Exception("The action " + str(action) + " is not supported.")
 
-    def log_progress(self, logger, episode_index, global_counter):
+    def log_progress(self, episode_index, global_counter):
 
-        logger.info(
-            "EPISODE %s: Developer fixes: %.2f Sloppy commits: %.2f Attempted Deliveries: %.2f  "
+        self.agent.logger.info(
+            "DEV %s -> EPISODE %s: Developer fixes: %.2f Sloppy commits: %.2f Attempted Deliveries: %.2f  "
             "Sloppy ratio: %.2f Next epsilon: %.2f ",
+            self.name,
             str(episode_index),
             self.issues_delivered,
             self.sloppy_counter,
@@ -152,14 +156,15 @@ class SimulationEnvironment(object):
     def get_system_state(self):
         return self.time_units - self.current_time, self.to_do_issues, self.doing_issues, self.done_issues
 
-    def step(self, developer, time_step, global_counter, session):
+    def step(self, developers, time_step, global_counter, session):
         self.current_time = time_step
-        action_performed = None
+        actions_performed = {}
 
-        if self.to_do_issues > 0:
+        for developer in developers:
 
             if developer.current_issue is None:
                 action_performed = self.move_to_in_progress(developer, global_counter, session)
+                actions_performed[developer.name] = action_performed
             else:
 
                 random_output = np.random.random()
@@ -175,7 +180,7 @@ class SimulationEnvironment(object):
         if np.random.random() < self.prob_new_issue:
             self.add_to_backlog()
 
-        return action_performed, self.get_system_state()
+        return actions_performed, self.get_system_state()
 
 
 def run_simulation():

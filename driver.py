@@ -36,8 +36,10 @@ def main():
     initial_epsilon = 1.0
     final_epsilon = 0.1
 
+    replay_memory_size = 100
     checkpoint_path = "./tech_debt_rl.ckpt"
     enable_restore = False
+    number_agents = 2
 
     approach_map = {simmodel.CLEAN_ACTION: simmodel.CodingApproach(resolution_factor=1.1, rework_factor=0.9,
                                                                    code_impact=1.0),
@@ -45,11 +47,21 @@ def main():
                                                                     rework_factor=1.05,  # TODO Testing rework impact
                                                                     code_impact=1.05)}
 
-    developer_agent = rlagent.DeepQLearner(learning_rate=learning_rate,
-                                           discount_factor=discount_factor, counter_for_learning=counter_for_learning,
-                                           input_number=input_number, hidden_units=hidden_units, logger=logger,
-                                           initial_epsilon=initial_epsilon, final_epsilon=final_epsilon,
-                                           decay_steps=decay_steps)
+    developers = []
+    for index in range(number_agents):
+        dev_name = "DEV" + str(index)
+        developer_agent = rlagent.DeepQLearner(name=dev_name,
+                                               learning_rate=learning_rate,
+                                               discount_factor=discount_factor,
+                                               counter_for_learning=counter_for_learning,
+                                               input_number=input_number, hidden_units=hidden_units,
+                                               logger=logger,
+                                               initial_epsilon=initial_epsilon, final_epsilon=final_epsilon,
+                                               decay_steps=decay_steps,
+                                               replay_memory_size=replay_memory_size)
+
+        developer = simmodel.Developer(agent=developer_agent, approach_map=approach_map)
+        developers.append(developer)
 
     simulation_environment = simmodel.SimulationEnvironment(logger=logger,
                                                             time_units=time_units,
@@ -57,15 +69,13 @@ def main():
                                                             prob_new_issue=prob_new_issue,
                                                             prob_rework=prob_rework)
 
-    developer = simmodel.Developer(agent=developer_agent, approach_map=approach_map)
-
     dq_learner = dqlearning.DeepQLearning(logger=logger, total_episodes=total_episodes, decay_steps=decay_steps,
                                           train_frequency=train_frequency, batch_size=batch_size,
                                           counter_for_learning=counter_for_learning,
                                           transfer_frequency=transfer_frequency, save_frequency=save_frequency,
                                           checkpoint_path=checkpoint_path)
 
-    dq_learner.start(simulation_environment, developer, enable_restore)
+    dq_learner.start(simulation_environment, developers, enable_restore)
 
 
 if __name__ == "__main__":
