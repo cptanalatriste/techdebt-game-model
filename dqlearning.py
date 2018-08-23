@@ -23,7 +23,6 @@ class DeepQLearning(object):
     def start(self, simulation_environment, agent_wrappers, enable_restore):
 
         with tf.Session() as session:
-
             initializer = tf.global_variables_initializer()
             saver = tf.train.Saver()
 

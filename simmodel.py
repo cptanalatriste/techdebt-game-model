@@ -50,6 +50,7 @@ class Developer(object):
 
         self.issues_delivered = None
         self.sloppy_counter = None
+        self.action_counter = None
         self.attempted_deliveries = None
 
         self.reset()
@@ -60,7 +61,9 @@ class Developer(object):
     def reset(self):
         self.current_issue = None
         self.issues_delivered = 0
+
         self.sloppy_counter = 0
+        self.action_counter = 0
         self.attempted_deliveries = 0
 
         self.agent.new_episode()
@@ -73,6 +76,8 @@ class Developer(object):
                                           session=session)
 
         self.carry_out_action(action, simulation_environment)
+        self.action_counter += 1
+
         return action
 
     def carry_out_action(self, action, simulation_environment):
@@ -89,6 +94,8 @@ class Developer(object):
 
     def log_progress(self, episode_index, global_counter):
 
+        sloppy_ratio = float(self.sloppy_counter) / self.action_counter if self.action_counter > 0 else 0.0
+
         self.agent.logger.info(
             "DEV %s -> EPISODE %s: Developer fixes: %.2f Sloppy commits: %.2f Attempted Deliveries: %.2f  "
             "Sloppy ratio: %.2f Next epsilon: %.2f ",
@@ -97,8 +104,10 @@ class Developer(object):
             self.issues_delivered,
             self.sloppy_counter,
             self.attempted_deliveries,
-            float(self.sloppy_counter) / max(self.attempted_deliveries, 1),
+            sloppy_ratio,
             self.agent.get_current_epsilon(global_counter))
+
+        self.agent.metric_catalogue.append(sloppy_ratio)
 
 
 class SimulationEnvironment(object):

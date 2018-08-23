@@ -1,4 +1,4 @@
-
+chk/
 *.xml
 *.iml
 *.pyc
@@ -9,3 +9,6 @@
 *.index
 *.meta
 .DS_Store
+*.png
+sloppy_code_impact_105_tech_debt_rl.ckpt.index.tempstate10408560589945717983
+*.meta

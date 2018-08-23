@@ -70,6 +70,7 @@ class DeepQLearner(object):
                  logger, initial_epsilon, final_epsilon, decay_steps, replay_memory_size):
         self.logger = logger
         self.name = name
+        self.metric_catalogue = []
         self.initial_epsilon = initial_epsilon
         self.final_epsilon = final_epsilon
         self.decay_steps = decay_steps
