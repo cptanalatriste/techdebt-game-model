@@ -22,9 +22,10 @@ def main():
     # logging_level = logging.DEBUG
 
     # total_episodes = 1000
-    # total_episodes = 100
-    total_episodes = 10
-    decay_steps = total_episodes * 100
+    total_episodes = 100
+    time_units = 60
+
+    decay_steps = int(total_episodes * time_units / 2)
 
     train_frequency = 4
     batch_size = 32
@@ -34,8 +35,6 @@ def main():
     input_number = 4
     hidden_units = 24
 
-    # time_units = 60
-    time_units = 30
     counter_for_learning = total_episodes * time_units * 0.1
     transfer_frequency = counter_for_learning
     save_frequency = counter_for_learning * 0.1
@@ -52,7 +51,7 @@ def main():
 
     sloppy_code_impact = 1.05
 
-    for sloppy_rework_factor in [1.05, 1.2, 1.4]:  # TODO Testing rework impact
+    for sloppy_rework_factor in [1.05, 1.4]:  # TODO Testing rework impact
 
         scenario = "sloppy_code_impact_" + str(sloppy_rework_factor).replace('.', '')
         print("Current scenario: " + scenario)
