@@ -130,7 +130,7 @@ class SimulationEnvironment(object):
 
         self.reset()
 
-    def reset(self):
+    def reset(self, agent_wrappers=None):
         self.avg_resolution_time = self.init_avg_resolution_time
         self.prob_new_issue = self.init_prob_new_issue
         self.prob_rework = self.init_prob_rework
@@ -140,6 +140,10 @@ class SimulationEnvironment(object):
         self.done_issues = 0
 
         self.current_time = 0
+
+        if agent_wrappers is not None:
+            for wrapper in agent_wrappers:
+                wrapper.reset()
 
     def add_to_backlog(self):
         self.to_do_issues += 1
@@ -165,7 +169,7 @@ class SimulationEnvironment(object):
     def get_system_state(self):
         return self.time_units - self.current_time, self.to_do_issues, self.doing_issues, self.done_issues
 
-    def step(self, developers, time_step, global_counter, session):
+    def step(self, developers, time_step, session, global_counter=None):
         self.current_time = time_step
         actions_performed = {}
 

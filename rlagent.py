@@ -66,27 +66,33 @@ class EpisodeExperience(object):
 
 class DeepQLearner(object):
 
-    def __init__(self, name, learning_rate, discount_factor, input_number, hidden_units, counter_for_learning,
-                 logger, initial_epsilon, final_epsilon, decay_steps, replay_memory_size):
+    def __init__(self, name, input_number, hidden_units, logger, learning_rate=None, discount_factor=None,
+                 counter_for_learning=None,
+                 initial_epsilon=None, final_epsilon=None, decay_steps=None, replay_memory_size=None):
         self.logger = logger
         self.name = name
-        self.metric_catalogue = []
-        self.initial_epsilon = initial_epsilon
-        self.final_epsilon = final_epsilon
-        self.decay_steps = decay_steps
         self.episode_experience = EpisodeExperience()
-        self.replay_memory = ExperienceReplayMemory(replay_memory_size=replay_memory_size)
+        self.metric_catalogue = []
 
-        self.learning_rate = learning_rate
         self.actions = [simmodel.CLEAN_ACTION, simmodel.SLOPPY_ACTION]
-        self.discount_factor = discount_factor
-        self.counter_for_learning = counter_for_learning
 
-        self.target_scope = self.name + '-target_network'
         self.prediction_scope = self.name + '-prediction_network'
-        self.pred_states, self.pred_q_values = self.build_network(self.target_scope, input_number, hidden_units)
-        self.target_states, self.target_q_values = self.build_network(self.prediction_scope, input_number, hidden_units)
-        self.train_target_q, self.train_actions, self.train_loss, self.train_operation = self.build_training_operation()
+        self.pred_states, self.pred_q_values = self.build_network(self.prediction_scope, input_number, hidden_units)
+
+        if learning_rate is not None:
+            self.initial_epsilon = initial_epsilon
+            self.final_epsilon = final_epsilon
+            self.decay_steps = decay_steps
+            self.replay_memory = ExperienceReplayMemory(replay_memory_size=replay_memory_size)
+            self.discount_factor = discount_factor
+            self.counter_for_learning = counter_for_learning
+
+            self.target_scope = self.name + '-target_network'
+            self.target_states, self.target_q_values = self.build_network(self.target_scope, input_number,
+                                                                          hidden_units)
+
+            self.train_target_q, self.train_actions, self.train_loss, self.train_operation = self.build_training_operation(
+                learning_rate)
 
     def new_episode(self):
         self.episode_experience = EpisodeExperience()
@@ -119,18 +125,24 @@ class DeepQLearner(object):
         return states, outputs
 
     def get_current_epsilon(self, global_counter):
-        return max(self.final_epsilon,
-                   self.initial_epsilon - (
-                           self.initial_epsilon - self.final_epsilon) * global_counter / self.decay_steps)
+
+        if hasattr(self, 'decay_steps'):
+            return max(self.final_epsilon,
+                       self.initial_epsilon - (
+                               self.initial_epsilon - self.final_epsilon) * global_counter / self.decay_steps)
+        else:
+            return None
 
     def select_action(self, system_state, global_counter, session):
         prob_random = self.get_current_epsilon(global_counter)
-        self.logger.debug(self.name + "-system state: %s prob_random: %.2f", str(system_state), prob_random)
 
         q_values_from_pred = session.run(self.pred_q_values, feed_dict={self.pred_states: [system_state]})
 
         # TODO Also check the need of this
-        if np.random.random() < prob_random or global_counter < self.counter_for_learning:
+        if (prob_random is not None and np.random.random() < prob_random) or (
+                hasattr(self, 'counter_for_learning') and global_counter < self.counter_for_learning):
+            self.logger.debug(self.name + "-system state: %s prob_random: %.2f", str(system_state), prob_random)
+
             action = np.random.randint(len(self.actions))
             self.logger.debug(self.name + "-Behaving randomly: %s", str(action))
             return action
@@ -140,7 +152,7 @@ class DeepQLearner(object):
                               str(q_values_from_pred))
             return action
 
-    def build_training_operation(self):
+    def build_training_operation(self, learning_rate):
         train_target_q = tf.placeholder(tf.float32, [None], name="target_q_values")
         train_actions = tf.placeholder(tf.int64, [None], name="actions")
 
@@ -149,7 +161,7 @@ class DeepQLearner(object):
 
         delta = tf.square(train_target_q - action_q_values)
         loss = tf.reduce_mean(delta, name="loss")
-        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
 
         return train_target_q, train_actions, loss, optimizer.minimize(loss)
 

@@ -35,19 +35,18 @@ class DeepQLearning(object):
 
             for episode_index in tqdm(range(1, self.total_episodes + 1)):
 
-                simulation_environment.reset()
-                for wrapper in agent_wrappers:
-                    wrapper.reset()
-
+                simulation_environment.reset(agent_wrappers)
                 previous_state = simulation_environment.get_system_state()
 
+                # TODO: Use a tensorflow variable to allow restoring training
                 for time_step in range(simulation_environment.time_units):
                     self.logger.debug("Episode: %s Time step: %s  Global counter: %s", str(episode_index),
                                       str(time_step), str(global_counter))
 
-                    actions_performed, new_state = simulation_environment.step(agent_wrappers, time_step,
-                                                                               global_counter,
-                                                                               session)
+                    actions_performed, new_state = simulation_environment.step(agent_wrappers=agent_wrappers,
+                                                                               time_step=time_step,
+                                                                               global_counter=global_counter,
+                                                                               session=session)
 
                     for agent_wrapper in agent_wrappers:
                         if agent_wrapper.name in actions_performed:
