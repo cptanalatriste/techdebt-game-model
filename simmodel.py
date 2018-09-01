@@ -15,6 +15,18 @@ class StubbornAgent(object):
         return self.only_action
 
 
+class PerformanceMetrics:
+
+    def __init__(self, developer):
+        self.sloppy_counter = developer.sloppy_counter
+        self.action_counter = developer.action_counter
+        self.attempted_deliveries = developer.attempted_deliveries
+        self.issues_delivered = developer.issues_delivered
+
+    def get_sloppy_ratio(self):
+        return float(self.sloppy_counter) / self.action_counter if self.action_counter > 0 else 0.0
+
+
 class DevelopmentIssue(object):
 
     def __init__(self, avg_resolution_time, prob_rework, code_impact):
@@ -92,22 +104,22 @@ class Developer(object):
         else:
             raise Exception("The action " + str(action) + " is not supported.")
 
-    def log_progress(self, episode_index, global_counter):
+    def log_progress(self, episode_index, global_counter=None):
 
-        sloppy_ratio = float(self.sloppy_counter) / self.action_counter if self.action_counter > 0 else 0.0
+        performance_metrics = PerformanceMetrics(developer=self)
 
         self.agent.logger.info(
             "DEV %s -> EPISODE %s: Developer fixes: %.2f Sloppy commits: %.2f Attempted Deliveries: %.2f  "
-            "Sloppy ratio: %.2f Next epsilon: %.2f ",
+            "Sloppy ratio: %.2f Next epsilon: %s ",
             self.name,
             str(episode_index),
             self.issues_delivered,
             self.sloppy_counter,
             self.attempted_deliveries,
-            sloppy_ratio,
-            self.agent.get_current_epsilon(global_counter))
+            performance_metrics.get_sloppy_ratio(),
+            str(self.agent.get_current_epsilon(global_counter)))
 
-        self.agent.metric_catalogue.append(sloppy_ratio)
+        self.agent.record_metric(performance_metrics)
 
 
 class SimulationEnvironment(object):

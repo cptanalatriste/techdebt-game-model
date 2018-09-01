@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 import logging
 
 from tqdm import tqdm
@@ -9,14 +10,14 @@ import trainingdriver
 
 
 def main():
-    log_filename = "payoof_table_builder.log"
+    log_filename = "payoff_table_builder.log"
     logging_level = logging.INFO
     logger = logging.getLogger("Payoff-table-builder->")
     handler = logging.FileHandler(log_filename, mode='w')
     logger.addHandler(handler)
     logger.setLevel(logging_level)
 
-    simulation_episodes = 30
+    simulation_episodes = 100
 
     developers = []
 
@@ -34,7 +35,7 @@ def main():
             name=trainingdriver.DEVELOPER_NAME_PREFIX + str(agent_index) + "_" + scenario_name,
             input_number=trainingdriver.INPUT_NUMBER,
             hidden_units=trainingdriver.HIDDEN_UNITS,
-            logger=logger, learning_rate=None)
+            logger=logger)
         developer = simmodel.Developer(agent=developer_agent, approach_map=scenario_approach_map)
         developers.append(developer)
 
@@ -58,6 +59,21 @@ def main():
                                             session=session)
 
             logger.debug("Episode %s finished: ", str(episode_index))
+
+            for developer in developers:
+                developer.log_progress(episode_index)
+
+        for developer in developers:
+            payoff_values = [performance_metric.issues_delivered for performance_metric in
+                             developer.agent.metric_catalogue]
+            sloppiness_values = [performance_metric.get_sloppy_ratio() for performance_metric in
+                                 developer.agent.metric_catalogue]
+
+            logger.info(
+                "%s ->  %.2f REPLICATIONS : Payoff (mean, std) %.2f %.2f   Sloppiness (mean, std): %.2f %.2f",
+                developer.name,
+                simulation_episodes, np.mean(payoff_values), np.std(payoff_values), np.mean(sloppiness_values),
+                np.std(sloppiness_values))
 
 
 if __name__ == "__main__":

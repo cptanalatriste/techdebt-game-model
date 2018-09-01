@@ -124,6 +124,9 @@ class DeepQLearner(object):
 
         return states, outputs
 
+    def record_metric(self, metric_value):
+        self.metric_catalogue.append(metric_value)
+
     def get_current_epsilon(self, global_counter):
 
         if hasattr(self, 'decay_steps'):
@@ -138,7 +141,6 @@ class DeepQLearner(object):
 
         q_values_from_pred = session.run(self.pred_q_values, feed_dict={self.pred_states: [system_state]})
 
-        # TODO Also check the need of this
         if (prob_random is not None and np.random.random() < prob_random) or (
                 hasattr(self, 'counter_for_learning') and global_counter < self.counter_for_learning):
             self.logger.debug(self.name + "-system state: %s prob_random: %.2f", str(system_state), prob_random)

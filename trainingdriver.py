@@ -10,16 +10,18 @@ HIDDEN_UNITS = 24
 CHECKPOINT_SUFFIX = "_tech_debt_rl.ckpt"
 NUMBER_AGENTS = 2
 
-CLEAN_CODING_APPROACH = simmodel.CodingApproach(resolution_factor=1.1, rework_factor=0.9,
-                                                code_impact=1.0)
-
-SLOPPY_CODE_IMPACT = 1.05
-SLOPPY_RESOLUTION_FACTOR = 0.75
-
 SCENARIO_TIME_UNITS = 60
 SCENARIO_AVG_RESOLUTION_TIME = 1 / 3.0
 SCENARIO_PROB_NEW_ISSUE = 0.9
 SCENARIO_PROB_REWORK = 0.05
+
+CLEAN_CODING_APPROACH = simmodel.CodingApproach(
+    resolution_factor=0.9,
+    rework_factor=0.9,
+    code_impact=1.0)
+
+SLOPPY_CODE_IMPACT = 0.95
+SLOPPY_RESOLUTION_FACTOR = 1.25
 
 
 def plot_learning(developers, filename="plot.png"):
