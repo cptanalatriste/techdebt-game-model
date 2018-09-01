@@ -127,6 +127,9 @@ class DeepQLearner(object):
     def record_metric(self, metric_value):
         self.metric_catalogue.append(metric_value)
 
+    def clear_metrics(self):
+        self.metric_catalogue = []
+
     def get_current_epsilon(self, global_counter):
 
         if hasattr(self, 'decay_steps'):

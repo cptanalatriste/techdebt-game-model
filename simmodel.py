@@ -65,6 +65,7 @@ class Developer(object):
         self.action_counter = None
         self.attempted_deliveries = None
 
+        self.agent.clear_metrics()
         self.reset()
 
     def get_reward(self):
