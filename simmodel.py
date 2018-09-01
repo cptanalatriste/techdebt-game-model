@@ -105,15 +105,15 @@ class Developer(object):
         else:
             raise Exception("The action " + str(action) + " is not supported.")
 
-    def log_progress(self, episode_index, global_counter=None):
+    def log_progress(self, training_step=None, global_counter=None):
 
         performance_metrics = PerformanceMetrics(developer=self)
 
-        self.agent.logger.debug(
-            "DEV %s -> EPISODE %s: Developer fixes: %.2f Sloppy commits: %.2f Attempted Deliveries: %.2f  "
+        self.agent.logger.info(
+            "TRAINING_STEP %s DEV %s -> Developer fixes: %.2f Sloppy commits: %.2f Attempted Deliveries: %.2f  "
             "Sloppy ratio: %.2f Next epsilon: %s ",
+            str(training_step),
             self.name,
-            str(episode_index),
             self.issues_delivered,
             self.sloppy_counter,
             self.attempted_deliveries,
@@ -182,8 +182,8 @@ class SimulationEnvironment(object):
     def get_system_state(self):
         return self.time_units - self.current_time, self.to_do_issues, self.doing_issues, self.done_issues
 
-    def step(self, developers, time_step, session, global_counter=None):
-        self.current_time = time_step
+    def step(self, developers, session, global_counter=None):
+        self.current_time += 1
         actions_performed = {}
 
         for developer in developers:
@@ -206,7 +206,9 @@ class SimulationEnvironment(object):
         if np.random.random() < self.prob_new_issue:
             self.add_to_backlog()
 
-        return actions_performed, self.get_system_state()
+        episode_finished = self.current_time == self.time_units
+
+        return actions_performed, self.get_system_state(), episode_finished
 
 
 def run_simulation():

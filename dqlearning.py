@@ -1,13 +1,12 @@
 import tensorflow as tf
 import os
-from tqdm import tqdm
 
 
 class DeepQLearning(object):
 
-    def __init__(self, logger, total_episodes, decay_steps, train_frequency, batch_size, counter_for_learning,
+    def __init__(self, logger, total_training_steps, decay_steps, train_frequency, batch_size, counter_for_learning,
                  transfer_frequency, save_frequency, checkpoint_path):
-        self.total_episodes = total_episodes
+        self.total_training_steps = total_training_steps
         self.decay_steps = decay_steps
 
         self.train_frequency = train_frequency
@@ -20,6 +19,37 @@ class DeepQLearning(object):
         self.checkpoint_path = checkpoint_path
         self.logger = logger
 
+        self.scope = 'train'
+        self.training_step_var = self.get_global_step_variable()
+
+    def get_global_step_variable(self):
+        with tf.variable_scope(self.scope):
+            global_step_variable = tf.Variable(0, trainable=False, name='training_step')
+
+        return global_step_variable
+
+    def train_agents(self, agent_wrappers, training_step, session):
+        for agent_wrapper in agent_wrappers:
+            self.logger.debug("Attempting training on agent " + agent_wrapper.name)
+
+            ql_agent = agent_wrapper.agent
+
+            state_list, action_list, reward_list, next_state_list = ql_agent.sample_transitions(
+                self.batch_size)
+
+            self.logger.debug(agent_wrapper.name + "-Starting transition target calculations...")
+            target_q_values = ql_agent.calculate_transition_targets(session=session,
+                                                                    reward_list=reward_list,
+                                                                    next_state_list=next_state_list)
+
+            self.logger.debug(agent_wrapper.name + "-Starting training ...")
+            ql_agent.train_network(session=session,
+                                   target_q_values=target_q_values,
+                                   action_list=action_list, state_list=state_list)
+
+            if training_step % self.transfer_frequency:
+                ql_agent.update_target_weights(session)
+
     def start(self, simulation_environment, agent_wrappers, enable_restore):
 
         with tf.Session() as session:
@@ -31,60 +61,48 @@ class DeepQLearning(object):
             else:
                 session.run(initializer)
 
+            episode_finished = False
             global_counter = 0
 
-            for episode_index in tqdm(range(1, self.total_episodes + 1)):
+            simulation_environment.reset(agent_wrappers)
 
-                simulation_environment.reset(agent_wrappers)
+            while True:
+                training_step = self.training_step_var.eval()
+                if global_counter >= self.total_training_steps:
+                    break
+
+                global_counter += 1
+                if episode_finished:
+                    self.logger.debug("Episode finished!")
+                    for wrapper in agent_wrappers:
+                        wrapper.agent.store_experience()
+                        wrapper.log_progress(global_counter=global_counter, training_step=training_step)
+
+                    simulation_environment.reset(agent_wrappers)
+
                 previous_state = simulation_environment.get_system_state()
 
-                # TODO: Use a tensorflow variable to allow restoring training
-                for time_step in range(simulation_environment.time_units):
-                    self.logger.debug("Episode: %s Time step: %s  Global counter: %s", str(episode_index),
-                                      str(time_step), str(global_counter))
+                self.logger.debug("Training step: %s  Global counter: %s",
+                                  str(training_step), str(global_counter))
 
-                    actions_performed, new_state = simulation_environment.step(agent_wrappers=agent_wrappers,
-                                                                               time_step=time_step,
-                                                                               global_counter=global_counter,
-                                                                               session=session)
+                actions_performed, new_state, episode_finished = simulation_environment.step(
+                    developers=agent_wrappers,
+                    global_counter=global_counter,
+                    session=session)
 
-                    for agent_wrapper in agent_wrappers:
-                        if agent_wrapper.name in actions_performed:
-                            reward = agent_wrapper.get_reward()
-                            action_performed = actions_performed[agent_wrapper.name]
-                            agent_wrapper.agent.observe_action_effects(previous_state, action_performed, reward,
-                                                                       new_state)
-                    previous_state = new_state
-                    global_counter += 1
+                self.logger.debug("actions_performed %s new_state %s episode_finished %s", actions_performed, new_state,
+                                  episode_finished)
 
-                    if global_counter > self.counter_for_learning:
-                        if global_counter % self.train_frequency == 0:
+                for agent_wrapper in agent_wrappers:
+                    if agent_wrapper.name in actions_performed:
+                        reward = agent_wrapper.get_reward()
+                        action_performed = actions_performed[agent_wrapper.name]
+                        agent_wrapper.agent.observe_action_effects(previous_state, action_performed, reward,
+                                                                   new_state)
+                global_counter += 1
 
-                            for agent_wrapper in agent_wrappers:
-                                self.logger.debug("Attempting training on agent " + agent_wrapper.name)
+                if global_counter > self.counter_for_learning and global_counter % self.train_frequency == 0:
+                    self.train_agents(agent_wrappers=agent_wrappers, training_step=training_step, session=session)
 
-                                ql_agent = agent_wrapper.agent
-
-                                state_list, action_list, reward_list, next_state_list = ql_agent.sample_transitions(
-                                    self.batch_size)
-
-                                self.logger.debug(agent_wrapper.name + "-Starting transition target calculations...")
-                                target_q_values = ql_agent.calculate_transition_targets(session=session,
-                                                                                        reward_list=reward_list,
-                                                                                        next_state_list=next_state_list)
-
-                                self.logger.debug(agent_wrapper.name + "-Starting training ...")
-                                _ = ql_agent.train_network(session=session,
-                                                           target_q_values=target_q_values,
-                                                           action_list=action_list, state_list=state_list)
-
-                                if global_counter % self.transfer_frequency:
-                                    ql_agent.update_target_weights(session)
-
-                        if global_counter % self.save_frequency:
-                            saver.save(session, self.checkpoint_path)
-
-                self.logger.debug("Episode %s finished: ", str(episode_index))
-                for wrapper in agent_wrappers:
-                    wrapper.agent.store_experience()
-                    wrapper.log_progress(episode_index, global_counter)
+                if training_step % self.save_frequency:
+                    saver.save(session, self.checkpoint_path)

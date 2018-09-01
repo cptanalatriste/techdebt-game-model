@@ -69,7 +69,7 @@ def main():
                 simulation_environment.reset(developers)
 
                 for time_step in range(simulation_environment.time_units):
-                    simulation_environment.step(developers=developers, time_step=time_step,
+                    simulation_environment.step(developers=developers,
                                                 session=session)
 
                 logger.debug("Strategy Profile: DEV %d vs DEV %d ->Episode %s finished: ", agent_index,
@@ -77,7 +77,7 @@ def main():
                              str(episode_index))
 
                 for developer in developers:
-                    developer.log_progress(episode_index)
+                    developer.log_progress()
 
             for developer in developers:
                 payoff_values = [performance_metric.issues_delivered for performance_metric in

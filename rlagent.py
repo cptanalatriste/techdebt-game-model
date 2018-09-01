@@ -68,7 +68,7 @@ class DeepQLearner(object):
 
     def __init__(self, name, input_number, hidden_units, logger, learning_rate=None, discount_factor=None,
                  counter_for_learning=None,
-                 initial_epsilon=None, final_epsilon=None, decay_steps=None, replay_memory_size=None):
+                 initial_epsilon=None, final_epsilon=None, decay_steps=None, replay_memory_size=None, global_step=None):
         self.logger = logger
         self.name = name
         self.episode_experience = EpisodeExperience()
@@ -92,7 +92,7 @@ class DeepQLearner(object):
                                                                           hidden_units)
 
             self.train_target_q, self.train_actions, self.train_loss, self.train_operation = self.build_training_operation(
-                learning_rate)
+                learning_rate, global_step=global_step)
 
     def new_episode(self):
         self.episode_experience = EpisodeExperience()
@@ -157,7 +157,7 @@ class DeepQLearner(object):
                               str(q_values_from_pred))
             return action
 
-    def build_training_operation(self, learning_rate):
+    def build_training_operation(self, learning_rate, global_step):
         train_target_q = tf.placeholder(tf.float32, [None], name="target_q_values")
         train_actions = tf.placeholder(tf.int64, [None], name="actions")
 
@@ -168,7 +168,7 @@ class DeepQLearner(object):
         loss = tf.reduce_mean(delta, name="loss")
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
 
-        return train_target_q, train_actions, loss, optimizer.minimize(loss)
+        return train_target_q, train_actions, loss, optimizer.minimize(loss, global_step=global_step)
 
     def calculate_transition_targets(self, session, reward_list, next_state_list):
         next_q_values = session.run(self.target_q_values, feed_dict={self.target_states: next_state_list})

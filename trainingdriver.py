@@ -37,11 +37,12 @@ def plot_learning(developers, filename="plot.png"):
 
 
 def main():
+    logging_mode = 'a'
+    enable_restore = True
     logging_level = logging.INFO
-    # logging_level = logging.DEBUG
 
-    # total_episodes = 1000
-    total_episodes = 100
+    total_episodes = 1000
+    total_training_steps = 100000
 
     decay_steps = int(total_episodes * SCENARIO_TIME_UNITS / 2)
 
@@ -59,19 +60,18 @@ def main():
     final_epsilon = 0.1
 
     replay_memory_size = 100
-    enable_restore = False
 
-    for sloppy_rework_factor in [1.05, 1.4]:  # TODO Testing rework impact
+    for sloppy_rework_factor in [1.05]:  # Testing rework impact
 
         scenario = "sloppy_code_impact_" + str(sloppy_rework_factor).replace('.', '')
         print("Current scenario: " + scenario)
 
         plot_filename = scenario + '_plot.png'
         log_filename = scenario + '_tech_debt_rl.log'
-        checkpoint_path = "./chk" + scenario + CHECKPOINT_SUFFIX
+        checkpoint_path = "./chk/" + scenario + CHECKPOINT_SUFFIX
 
         logger = logging.getLogger(scenario + "-DQNetwork-Training->")
-        handler = logging.FileHandler(log_filename, mode='w')
+        handler = logging.FileHandler(log_filename, mode=logging_mode)
         logger.addHandler(handler)
         logger.setLevel(logging_level)
 
@@ -79,6 +79,13 @@ def main():
                         simmodel.SLOPPY_ACTION: simmodel.CodingApproach(resolution_factor=SLOPPY_RESOLUTION_FACTOR,
                                                                         rework_factor=sloppy_rework_factor,
                                                                         code_impact=SLOPPY_CODE_IMPACT)}
+
+        dq_learner = dqlearning.DeepQLearning(logger=logger, total_training_steps=total_training_steps,
+                                              decay_steps=decay_steps,
+                                              train_frequency=train_frequency, batch_size=batch_size,
+                                              counter_for_learning=counter_for_learning,
+                                              transfer_frequency=transfer_frequency, save_frequency=save_frequency,
+                                              checkpoint_path=checkpoint_path)
 
         developers = []
         for index in range(NUMBER_AGENTS):
@@ -91,7 +98,8 @@ def main():
                                                    logger=logger,
                                                    initial_epsilon=initial_epsilon, final_epsilon=final_epsilon,
                                                    decay_steps=decay_steps,
-                                                   replay_memory_size=replay_memory_size)
+                                                   replay_memory_size=replay_memory_size,
+                                                   global_step=dq_learner.training_step_var)
 
             developer = simmodel.Developer(agent=developer_agent, approach_map=approach_map)
             developers.append(developer)
@@ -101,12 +109,6 @@ def main():
                                                                 avg_resolution_time=SCENARIO_AVG_RESOLUTION_TIME,
                                                                 prob_new_issue=SCENARIO_PROB_NEW_ISSUE,
                                                                 prob_rework=SCENARIO_PROB_REWORK)
-
-        dq_learner = dqlearning.DeepQLearning(logger=logger, total_episodes=total_episodes, decay_steps=decay_steps,
-                                              train_frequency=train_frequency, batch_size=batch_size,
-                                              counter_for_learning=counter_for_learning,
-                                              transfer_frequency=transfer_frequency, save_frequency=save_frequency,
-                                              checkpoint_path=checkpoint_path)
 
         dq_learner.start(simulation_environment, developers, enable_restore)
         plot_learning(developers, filename=plot_filename)
