@@ -108,7 +108,7 @@ class Developer(object):
 
         performance_metrics = PerformanceMetrics(developer=self)
 
-        self.agent.logger.info(
+        self.agent.logger.debug(
             "DEV %s -> EPISODE %s: Developer fixes: %.2f Sloppy commits: %.2f Attempted Deliveries: %.2f  "
             "Sloppy ratio: %.2f Next epsilon: %s ",
             self.name,
