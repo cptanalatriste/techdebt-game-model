@@ -32,11 +32,22 @@ def main():
     logger.addHandler(handler)
     logger.setLevel(logging_level)
 
-    simulation_episodes = 30
+    simulation_episodes = 100
 
+    # This are the values for the current scenario
     sloppy_rework_factor = 1.05
+    avg_resolution_time = trainingdriver.SCENARIO_AVG_RESOLUTION_TIME
+
+    # This is the value for the worse scenario
+    sloppy_rework_factor = 1.05
+    avg_resolution_time = 1 / 5.0
+
+    # This is the value for the better scenario
+    sloppy_rework_factor = 10
+    avg_resolution_time = 1 / 5.0
+
     scenario_name = "sloppy_code_impact_105"
-    checkpoint_path = "results/sloppy_code_impact_105/" + scenario_name + trainingdriver.CHECKPOINT_SUFFIX
+    checkpoint_path = "results/sloppy_code_impact_105_5000_steps/" + scenario_name + trainingdriver.CHECKPOINT_SUFFIX
 
     scenario_approach_map = {simmodel.CLEAN_ACTION: trainingdriver.CLEAN_CODING_APPROACH,
                              simmodel.SLOPPY_ACTION: simmodel.CodingApproach(
@@ -58,7 +69,7 @@ def main():
 
             simulation_environment = simmodel.SimulationEnvironment(logger=logger,
                                                                     time_units=trainingdriver.SCENARIO_TIME_UNITS,
-                                                                    avg_resolution_time=trainingdriver.SCENARIO_AVG_RESOLUTION_TIME,
+                                                                    avg_resolution_time=avg_resolution_time,
                                                                     prob_new_issue=trainingdriver.SCENARIO_PROB_NEW_ISSUE,
                                                                     prob_rework=trainingdriver.SCENARIO_PROB_REWORK)
 
