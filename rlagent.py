@@ -92,7 +92,7 @@ class DeepQLearner(object):
                                                                           hidden_units)
 
             self.train_target_q, self.train_actions, self.train_loss, self.train_operation = self.build_training_operation(
-                learning_rate, global_step=global_step)
+                learning_rate=learning_rate, global_step=global_step, variable_scope=self.name + '-train')
 
     def new_episode(self):
         self.episode_experience = EpisodeExperience()
@@ -157,16 +157,18 @@ class DeepQLearner(object):
                               str(q_values_from_pred))
             return action
 
-    def build_training_operation(self, learning_rate, global_step):
-        train_target_q = tf.placeholder(tf.float32, [None], name="target_q_values")
-        train_actions = tf.placeholder(tf.int64, [None], name="actions")
+    def build_training_operation(self, learning_rate, global_step, variable_scope):
 
-        actions_one_hot = tf.one_hot(train_actions, len(self.actions), 1.0, 0.0, name="actions_one_hot")
-        action_q_values = tf.reduce_sum(self.pred_q_values * actions_one_hot, axis=1, name="action_q_values")
+        with tf.variable_scope(variable_scope):
+            train_target_q = tf.placeholder(tf.float32, [None], name="target_q_values")
+            train_actions = tf.placeholder(tf.int64, [None], name="actions")
 
-        delta = tf.square(train_target_q - action_q_values)
-        loss = tf.reduce_mean(delta, name="loss")
-        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+            actions_one_hot = tf.one_hot(train_actions, len(self.actions), 1.0, 0.0, name="actions_one_hot")
+            action_q_values = tf.reduce_sum(self.pred_q_values * actions_one_hot, axis=1, name="action_q_values")
+
+            delta = tf.square(train_target_q - action_q_values)
+            loss = tf.reduce_mean(delta, name="loss")
+            optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
 
         return train_target_q, train_actions, loss, optimizer.minimize(loss, global_step=global_step)
 
