@@ -4,6 +4,9 @@ import numpy as np
 
 
 class ExperienceReplayMemory(object):
+    """
+    Implementation of the replay memory.
+    """
 
     def __init__(self, replay_memory_size):
         self.replay_memory_size = replay_memory_size
@@ -16,6 +19,11 @@ class ExperienceReplayMemory(object):
             self.consolidated_experience.purge()
 
     def sample_transitions(self, batch_size):
+        """
+        Randomly sample a batch of experiences from the replay memory.
+        :param batch_size:
+        :return:
+        """
         batch = EpisodeExperience()
 
         if self.consolidated_experience.size() == 0:
@@ -110,6 +118,14 @@ class DeepQLearner(object):
         self.replay_memory.store_experience(self.episode_experience)
 
     def build_network(self, variable_scope, input_number, hidden_units):
+        """
+        Creates the Deep Q-network. It takes as a input a state and produces a Q-value estimate per action as an output.
+
+        :param variable_scope:
+        :param input_number:
+        :param hidden_units:
+        :return:
+        """
         with tf.variable_scope(variable_scope):
             states = tf.placeholder(tf.float32, shape=[None, input_number], name="state")
 
@@ -140,6 +156,14 @@ class DeepQLearner(object):
             return None
 
     def select_action(self, system_state, global_counter, session):
+        """
+        Explores the system using an epsilon-greedy policy.
+
+        :param system_state:
+        :param global_counter:
+        :param session:
+        :return:
+        """
         prob_random = self.get_current_epsilon(global_counter)
 
         q_values_from_pred = session.run(self.pred_q_values, feed_dict={self.pred_states: [system_state]})
@@ -158,6 +182,14 @@ class DeepQLearner(object):
             return action
 
     def build_training_operation(self, learning_rate, global_step, variable_scope):
+        """
+        Generates the training operations for the Prediction DQN.
+
+        :param learning_rate:
+        :param global_step:
+        :param variable_scope:
+        :return:
+        """
 
         with tf.variable_scope(variable_scope):
             train_target_q = tf.placeholder(tf.float32, [None], name="target_q_values")
@@ -202,6 +234,11 @@ class DeepQLearner(object):
         return q_values
 
     def update_target_weights(self, session):
+        """
+        Copies the Prediction DQN to the Target DQN
+        :param session:
+        :return:
+        """
         target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.target_scope)
         pred_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.prediction_scope)
 
