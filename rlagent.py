@@ -172,6 +172,19 @@ class DeepQLearner(object):
 
         return train_target_q, train_actions, loss, optimizer.minimize(loss, global_step=global_step)
 
+    def train(self, session, batch_size):
+        state_list, action_list, reward_list, next_state_list = self.sample_transitions(batch_size)
+
+        self.logger.debug(self.name + "-Starting transition target calculations...")
+        target_q_values = self.calculate_transition_targets(session=session,
+                                                            reward_list=reward_list,
+                                                            next_state_list=next_state_list)
+
+        self.logger.debug(self.name + "-Starting training ...")
+        self.train_network(session=session,
+                           target_q_values=target_q_values,
+                           action_list=action_list, state_list=state_list)
+
     def calculate_transition_targets(self, session, reward_list, next_state_list):
         next_q_values = session.run(self.target_q_values, feed_dict={self.target_states: next_state_list})
         max_next_q_value = np.max(next_q_values, axis=1)

@@ -34,18 +34,7 @@ class DeepQLearning(object):
 
             ql_agent = agent_wrapper.agent
 
-            state_list, action_list, reward_list, next_state_list = ql_agent.sample_transitions(
-                self.batch_size)
-
-            self.logger.debug(agent_wrapper.name + "-Starting transition target calculations...")
-            target_q_values = ql_agent.calculate_transition_targets(session=session,
-                                                                    reward_list=reward_list,
-                                                                    next_state_list=next_state_list)
-
-            self.logger.debug(agent_wrapper.name + "-Starting training ...")
-            ql_agent.train_network(session=session,
-                                   target_q_values=target_q_values,
-                                   action_list=action_list, state_list=state_list)
+            ql_agent.train(session=session, batch_size=self.batch_size)
 
             if training_step % self.transfer_frequency:
                 ql_agent.update_target_weights(session)
