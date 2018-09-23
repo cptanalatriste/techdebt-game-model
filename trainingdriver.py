@@ -11,7 +11,6 @@ CHECKPOINT_SUFFIX = "_tech_debt_rl.ckpt"
 NUMBER_AGENTS = 2
 
 SCENARIO_TIME_UNITS = 60
-# SCENARIO_AVG_RESOLUTION_TIME = 1 / 3.0
 SCENARIO_AVG_RESOLUTION_TIME = 1 / 5.0
 SCENARIO_PROB_NEW_ISSUE = 0.9
 SCENARIO_PROB_REWORK = 0.05
@@ -25,12 +24,15 @@ SLOPPY_CODE_IMPACT = 0.95
 SLOPPY_RESOLUTION_FACTOR = 1.25
 
 
-def plot_learning(developers, filename="plot.png"):
+def plot_learning(developers, metric_name, filename="plot.png"):
+    print("Plotting before exiting...")
     plt.clf()
     for developer in developers:
         metrics = developer.agent.metric_catalogue
         episodes = range(len(metrics))
-        plt.plot(episodes, metrics, label=developer.name)
+
+        metric_values = [getattr(metric, metric_name) for metric in metrics]
+        plt.plot(episodes, metric_values, label=developer.name)
 
     plt.legend()
     plt.savefig(filename)
@@ -38,14 +40,14 @@ def plot_learning(developers, filename="plot.png"):
 
 
 def main():
-    logging_mode = 'a'
+    # logging_mode = 'a'
+    logging_mode = 'w'
     enable_restore = True
+
     logging_level = logging.INFO
 
-    total_episodes = 1000
-    total_training_steps = 100000
-
-    decay_steps = int(total_episodes * SCENARIO_TIME_UNITS / 2)
+    total_training_steps = 10000
+    decay_steps = int(total_training_steps / 2)
 
     train_frequency = 4
     batch_size = 32
@@ -53,7 +55,7 @@ def main():
     discount_factor = 0.99
     learning_rate = 1e-4
 
-    counter_for_learning = total_episodes * SCENARIO_TIME_UNITS * 0.1
+    counter_for_learning = int(total_training_steps/100)
     transfer_frequency = counter_for_learning
     save_frequency = counter_for_learning * 0.1
 
@@ -112,7 +114,8 @@ def main():
                                                                 prob_rework=SCENARIO_PROB_REWORK)
 
         dq_learner.start(simulation_environment, developers, enable_restore)
-        plot_learning(developers, filename=plot_filename)
+        plot_learning(developers, metric_name='issues_delivered', filename=plot_filename)
+        plot_learning(developers, metric_name='sloppy_counter', filename='sloppy_counter_' + plot_filename)
 
 
 if __name__ == "__main__":

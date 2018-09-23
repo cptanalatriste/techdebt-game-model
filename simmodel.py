@@ -4,15 +4,56 @@ import matplotlib.pyplot as plt
 
 CLEAN_ACTION = 0
 SLOPPY_ACTION = 1
+NO_ACTION = 2
+
+FIX_REWARD = +1
+NO_REWARD = 0
+
+PENDING_TIME_INDEX = 0
+PENDING_ITEMS_INDEX = 1
 
 
-class StubbornAgent(object):
+def last_minute_patcher(agent, system_state):
+    action = CLEAN_ACTION
+    pending_time = system_state[PENDING_TIME_INDEX]
 
-    def __init__(self, only_action):
-        self.only_action = only_action
+    if pending_time <= agent.panic_threshold:
+        action = SLOPPY_ACTION
 
-    def select_action(self, system_state, epsilon_decrease, global_counter):
-        return self.only_action
+    return action
+
+
+def stressed_patcher(agent, system_state):
+    action = CLEAN_ACTION
+    pending_items = system_state[PENDING_ITEMS_INDEX]
+
+    if pending_items > agent.panic_threshold:
+        action = SLOPPY_ACTION
+    return action
+
+
+class BaseDeveloper(object):
+
+    def __init__(self, logger, name, panic_threshold, action_selector):
+        self.name = name
+        self.logger = logger
+        self.panic_threshold = panic_threshold
+        self.metric_catalogue = []
+
+        self.actions = [CLEAN_ACTION, SLOPPY_ACTION]
+        self.action_selector = action_selector
+
+    def record_metric(self, metric_value):
+        self.metric_catalogue.append(metric_value)
+
+    def clear_metrics(self):
+        self.metric_catalogue = []
+
+    def select_action(self, system_state, global_counter=None, session=None):
+        return self.action_selector(self, system_state)
+
+    def new_episode(self):
+        pass
 
 
 class PerformanceMetrics:
@@ -108,6 +149,10 @@ class Developer(object):
     def log_progress(self, training_step=None, global_counter=None):
 
         performance_metrics = PerformanceMetrics(developer=self)
+        current_epsilon = None
+
+        if hasattr(self.agent, 'learning_rate'):
+            current_epsilon = self.agent.get_current_epsilon(global_counter)
 
         self.agent.logger.info(
             "TRAINING_STEP %s DEV %s -> Developer fixes: %.2f Sloppy commits: %.2f Attempted Deliveries: %.2f  "
@@ -118,7 +163,7 @@ class Developer(object):
             self.sloppy_counter,
             self.attempted_deliveries,
             performance_metrics.get_sloppy_ratio(),
-            str(self.agent.get_current_epsilon(global_counter)))
+            str(current_epsilon))
 
         self.agent.record_metric(performance_metrics)
 
@@ -185,14 +230,17 @@ class SimulationEnvironment(object):
     def step(self, developers, session, global_counter=None):
         self.current_time += 1
         actions_performed = {}
+        rewards = {}
 
         for developer in developers:
+
+            actions_performed[developer.name] = NO_ACTION
+            rewards[developer.name] = NO_REWARD
 
             if developer.current_issue is None:
                 action_performed = self.move_to_in_progress(developer, global_counter, session)
                 actions_performed[developer.name] = action_performed
             else:
-
                 random_output = np.random.random()
                 if random_output < developer.current_issue.avg_resolution_time:
                     # Deliver issue, but verify rework first
@@ -202,13 +250,14 @@ class SimulationEnvironment(object):
                     if random_output >= developer.current_issue.prob_rework:
                         # No rework needed
                         self.move_to_done(developer)
+                        rewards[developer.name] = FIX_REWARD
 
         if np.random.random() < self.prob_new_issue:
             self.add_to_backlog()
 
         episode_finished = self.current_time == self.time_units
 
-        return actions_performed, self.get_system_state(), episode_finished
+        return actions_performed, self.get_system_state(), episode_finished, rewards
 
 
 def run_simulation():

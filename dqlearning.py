@@ -74,7 +74,7 @@ class DeepQLearning(object):
                 self.logger.debug("Training step: %s  Global counter: %s",
                                   str(training_step), str(global_counter))
 
-                actions_performed, new_state, episode_finished = simulation_environment.step(
+                actions_performed, new_state, episode_finished, rewards = simulation_environment.step(
                     developers=agent_wrappers,
                     global_counter=global_counter,
                     session=session)
@@ -83,12 +83,10 @@ class DeepQLearning(object):
                                   episode_finished)
 
                 for agent_wrapper in agent_wrappers:
-                    if agent_wrapper.name in actions_performed:
-                        reward = agent_wrapper.get_reward()
-                        action_performed = actions_performed[agent_wrapper.name]
-                        agent_wrapper.agent.observe_action_effects(previous_state, action_performed, reward,
-                                                                   new_state)
-                global_counter += 1
+                    action_performed = actions_performed[agent_wrapper.name]
+                    reward = rewards[agent_wrapper.name]
+                    agent_wrapper.agent.observe_action_effects(previous_state, action_performed, reward,
+                                                               new_state)
 
                 if global_counter > self.counter_for_learning and global_counter % self.train_frequency == 0:
                     self.train_agents(agent_wrappers=agent_wrappers, training_step=training_step, session=session)

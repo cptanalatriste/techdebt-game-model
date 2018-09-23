@@ -10,6 +10,15 @@ import simmodel
 import trainingdriver
 
 
+def load_heuristic_agents(logger):
+    agent_map = {0: simmodel.BaseDeveloper(name="last-minute-patcher", logger=logger, panic_threshold=7,
+                                           action_selector=simmodel.last_minute_patcher),
+                 1: simmodel.BaseDeveloper(name="stressed-patcher", logger=logger, panic_threshold=2,
+                                           action_selector=simmodel.stressed_patcher)}
+
+    return agent_map
+
+
 def load_trained_agents(logger, scenario_name):
     agent_map = {}
     for agent_index in range(trainingdriver.NUMBER_AGENTS):
@@ -33,14 +42,15 @@ def main():
     logger.setLevel(logging_level)
 
     simulation_episodes = 100
+    use_rl_agents = False
 
     # This are the values for the current scenario
-    sloppy_rework_factor = 1.05
-    avg_resolution_time = trainingdriver.SCENARIO_AVG_RESOLUTION_TIME
+    # sloppy_rework_factor = 1.05
+    # avg_resolution_time = trainingdriver.SCENARIO_AVG_RESOLUTION_TIME
 
     # This is the value for the worse scenario
-    sloppy_rework_factor = 1.05
-    avg_resolution_time = 1 / 5.0
+    # sloppy_rework_factor = 1.05
+    # avg_resolution_time = 1 / 5.0
 
     # This is the value for the better scenario
     sloppy_rework_factor = 10
@@ -55,13 +65,17 @@ def main():
                                  rework_factor=sloppy_rework_factor,
                                  code_impact=trainingdriver.SLOPPY_CODE_IMPACT)}
 
-    agent_map = load_trained_agents(logger, scenario_name)
-
-    saver = tf.train.Saver()
+    agent_map = load_heuristic_agents(logger)
+    if use_rl_agents:
+        agent_map = load_trained_agents(logger, scenario_name)
+        saver = tf.train.Saver()
 
     with tf.Session() as session:
-        saver.restore(session, checkpoint_path)
-        logger.info("Restored: " + checkpoint_path)
+        if use_rl_agents:
+            saver.restore(session, checkpoint_path)
+            logger.info("Restored: " + checkpoint_path)
+        else:
+            logger.info("Using only heuristic strategies!!!")
 
         for agent_index, opponent_index in itertools.combinations_with_replacement(range(trainingdriver.NUMBER_AGENTS),
                                                                                    trainingdriver.NUMBER_AGENTS):
