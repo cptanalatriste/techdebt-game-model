@@ -40,11 +40,10 @@ def plot_learning(developers, metric_name, filename="plot.png"):
 
 
 def main():
-    # logging_mode = 'a'
     logging_mode = 'w'
-    enable_restore = True
+    enable_restore = False
 
-    logging_level = logging.INFO
+    logging_level = logging.DEBUG
 
     total_training_steps = 10000
     decay_steps = int(total_training_steps / 2)
@@ -55,7 +54,7 @@ def main():
     discount_factor = 0.99
     learning_rate = 1e-4
 
-    counter_for_learning = int(total_training_steps/100)
+    counter_for_learning = int(total_training_steps / 100)
     transfer_frequency = counter_for_learning
     save_frequency = counter_for_learning * 0.1
 

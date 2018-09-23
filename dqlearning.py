@@ -89,6 +89,9 @@ class DeepQLearning(object):
                                                                new_state)
 
                 if global_counter > self.counter_for_learning and global_counter % self.train_frequency == 0:
+                    self.logger.debug(
+                        "Triggering training: global_counter " + str(global_counter) + " counter_for_learning: " + str(
+                            self.counter_for_learning) + " train_frequency " + str(self.train_frequency))
                     self.train_agents(agent_wrappers=agent_wrappers, training_step=training_step, session=session)
 
                 if training_step % self.save_frequency:

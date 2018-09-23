@@ -1,13 +1,16 @@
+import csv
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 CLEAN_ACTION = 0
 SLOPPY_ACTION = 1
-NO_ACTION = 2
+IN_PROGRESS_ACTION = 2
 
-FIX_REWARD = +1
-NO_REWARD = 0
+FIX_READY_REWARD = +10
+IN_PROGRESS_REWARD = -0.1
 
 PENDING_TIME_INDEX = 0
 PENDING_ITEMS_INDEX = 1
@@ -150,20 +153,23 @@ class Developer(object):
 
         performance_metrics = PerformanceMetrics(developer=self)
         current_epsilon = None
-
-        if hasattr(self.agent, 'learning_rate'):
+        if hasattr(self.agent, 'get_current_epsilon'):
             current_epsilon = self.agent.get_current_epsilon(global_counter)
 
-        self.agent.logger.info(
-            "TRAINING_STEP %s DEV %s -> Developer fixes: %.2f Sloppy commits: %.2f Attempted Deliveries: %.2f  "
-            "Sloppy ratio: %.2f Next epsilon: %s ",
-            str(training_step),
-            self.name,
-            self.issues_delivered,
-            self.sloppy_counter,
-            self.attempted_deliveries,
-            performance_metrics.get_sloppy_ratio(),
-            str(current_epsilon))
+        csv_filename = "training_log_" + self.name + ".csv"
+
+        if not os.path.isfile(csv_filename):
+            with open(csv_filename, 'w', newline="") as file:
+                csv_writer = csv.writer(file)
+                csv_writer.writerow(
+                    ['training_step', 'sloppy_counter', 'action_counter', 'attempted_deliveries', 'issues_delivered',
+                     'sloppy_ratio',
+                     'current_epsilon'])
+
+        with open(csv_filename, 'a', newline="") as f:
+            csv_writer = csv.writer(f)
+            csv_writer.writerow([training_step, self.sloppy_counter, self.action_counter, self.attempted_deliveries,
+                                 self.issues_delivered, performance_metrics.get_sloppy_ratio(), current_epsilon])
 
         self.agent.record_metric(performance_metrics)
 
@@ -234,8 +240,8 @@ class SimulationEnvironment(object):
 
         for developer in developers:
 
-            actions_performed[developer.name] = NO_ACTION
-            rewards[developer.name] = NO_REWARD
+            actions_performed[developer.name] = IN_PROGRESS_ACTION
+            rewards[developer.name] = IN_PROGRESS_REWARD
 
             if developer.current_issue is None:
                 action_performed = self.move_to_in_progress(developer, global_counter, session)
@@ -250,7 +256,7 @@ class SimulationEnvironment(object):
                     if random_output >= developer.current_issue.prob_rework:
                         # No rework needed
                         self.move_to_done(developer)
-                        rewards[developer.name] = FIX_REWARD
+                        rewards[developer.name] = FIX_READY_REWARD
 
         if np.random.random() < self.prob_new_issue:
             self.add_to_backlog()
