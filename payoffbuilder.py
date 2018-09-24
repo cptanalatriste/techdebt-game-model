@@ -49,12 +49,12 @@ def main():
     # avg_resolution_time = trainingdriver.SCENARIO_AVG_RESOLUTION_TIME
 
     # This is the value for the worse scenario
-    # sloppy_rework_factor = 1.05
-    # avg_resolution_time = trainingdriver.SCENARIO_AVG_RESOLUTION_TIME
+    sloppy_rework_factor = 2
+    avg_resolution_time = trainingdriver.SCENARIO_AVG_RESOLUTION_TIME
 
     # This is the value for the better scenario
-    sloppy_rework_factor = 10
-    avg_resolution_time = trainingdriver.SCENARIO_AVG_RESOLUTION_TIME
+    # sloppy_rework_factor = 10
+    # avg_resolution_time = trainingdriver.SCENARIO_AVG_RESOLUTION_TIME
 
     scenario_name = "sloppy_code_impact_105"
     checkpoint_path = "results/sloppy_code_impact_105_5000_steps/" + scenario_name + trainingdriver.CHECKPOINT_SUFFIX

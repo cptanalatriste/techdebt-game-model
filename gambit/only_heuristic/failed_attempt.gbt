@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gambit:document xmlns:gambit="http://gambit.sourceforge.net/" version="0.1">
+<colors>
+<player id="-1" red="0" green="0" blue="0" />
+<player id="0" red="154" green="205" blue="50" />
+<player id="1" red="255" green="0" blue="0" />
+<player id="2" red="0" green="0" blue="255" />
+</colors>
+<font size="10" family="74" face="Arial" style="90" weight="92" />
+<numbers decimals="4"/>
+<game>
+<nfgfile>
+NFG 1 R "Untitled Strategic Game" { "DEV-1" "DEV-2" }
+
+{ { "last-minute" "stressed" }
+{ "last-minute" "stressed" }
+}
+""
+
+{
+{ "" 10.06, 10.06 }
+{ "" 9.68, 8.23 }
+{ "" 8.23, 9.68 }
+{ "" 8.35, 8.35 }
+}
+1 2 3 4 
+</nfgfile>
+<analysis type="list">
+<description>
+All equilibria by enumeration of mixed strategies in strategic game
+</description>
+<profile type="mixed">
+1,0,1,0
+</profile>
+<profile type="mixed">
+6/25,19/25,6/25,19/25
+</profile>
+<profile type="mixed">
+0,1,0,1
+</profile>
+</analysis>
+</game>
+</gambit:document>
