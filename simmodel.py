@@ -1,12 +1,13 @@
 import csv
+import gymenvironment
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
-CLEAN_ACTION = 0
-SLOPPY_ACTION = 1
+CLEAN_ACTION = gymenvironment.Action.CodeClean
+SLOPPY_ACTION = gymenvironment.Action.CodeSloppy
 IN_PROGRESS_ACTION = 2
 
 FIX_READY_REWARD = +10
