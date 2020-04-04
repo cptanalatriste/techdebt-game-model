@@ -1,5 +1,7 @@
 # Equilibrium Analysis for Technical Debt
 
+*For an in-depht discussion of our empirical game-theoretic model, you can read our paper in the Journal of Systems and Software: https://www.sciencedirect.com/science/article/pii/S0164121219301980*
+
 This model can generate the payoff values for a payoff matrix representing technical debt. After triggering the script `payoffbuilder.py`, the payoff information per strategy profile will be stored in the file `payoff_table_builder.log`.
 This values can be later ported to a game solver like [Gambit](http://www.gambit-project.org/) to obtain its Nash Equilibrium.
 
