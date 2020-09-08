@@ -6,8 +6,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
-CLEAN_ACTION = gymenvironment.Action.CodeClean
-SLOPPY_ACTION = gymenvironment.Action.CodeSloppy
+CLEAN_ACTION = gymenvironment.Actions.CodeClean
+SLOPPY_ACTION = gymenvironment.Actions.CodeSloppy
 IN_PROGRESS_ACTION = 2
 
 FIX_READY_REWARD = +10
